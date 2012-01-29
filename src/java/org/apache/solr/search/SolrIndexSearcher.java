@@ -1025,6 +1025,21 @@ public class SolrIndexSearcher extends IndexSearcher implements SolrInfoMBean {
 			// perhaps there should be a multi-docset-iterator
 			superset = sortDocSet(out.docSet, cmd.getSort(), supersetMaxDoc);
 			out.docList = superset.subset(cmd.getOffset(), cmd.getLen());
+
+			// lastly, put the superset in the cache if the size is less than or
+			// equal
+			// to queryResultMaxDocsCached
+			if (key != null && superset.size() <= queryResultMaxDocsCached
+					&& !qr.isPartialResults()) {
+				
+				if (queryResultCache instanceof SolrCacheWithReader) {
+					if (terms != null) {
+						((SolrCacheWithReader)queryResultCache).put(key, superset, terms);
+					} 
+				} else {
+					queryResultCache.put(key, superset);
+				}
+			}
 		} else {
 			// do it the normal way...
 			// TODO: need to implement term locking here
@@ -1048,28 +1063,29 @@ public class SolrIndexSearcher extends IndexSearcher implements SolrInfoMBean {
 					// Parameters:
 					// cmd.getQuery(),theFilt,cmd.getSort(),0,supersetMaxDoc,cmd.getFlags(),cmd.getTimeAllowed(),responseHeader);
 				}
+				
+				superset = out.docList;
+				out.docList = superset.subset(cmd.getOffset(), cmd.getLen());
+				
+				// lastly, put the superset in the cache if the size is less than or
+				// equal
+				// to queryResultMaxDocsCached
+				if (key != null && superset.size() <= queryResultMaxDocsCached
+						&& !qr.isPartialResults()) {
+					
+					if (queryResultCache instanceof SolrCacheWithReader) {
+						if (terms != null) {
+							((SolrCacheWithReader)queryResultCache).put(key, superset, terms);
+						} 
+					} else {
+						queryResultCache.put(key, superset);
+					}
+				}
 			} finally {
 				// TODO: hacky, it requires to always have SolrCacheWithReader configured on instance of Solbase
 				if (queryResultCache instanceof SolrCacheWithReader) {
 					((SolrCacheWithReader) queryResultCache).releaseLock(terms);
 				}
-			}
-			superset = out.docList;
-			out.docList = superset.subset(cmd.getOffset(), cmd.getLen());
-		}
-
-		// lastly, put the superset in the cache if the size is less than or
-		// equal
-		// to queryResultMaxDocsCached
-		if (key != null && superset.size() <= queryResultMaxDocsCached
-				&& !qr.isPartialResults()) {
-			
-			if (queryResultCache instanceof SolrCacheWithReader) {
-				if (terms != null) {
-					((SolrCacheWithReader)queryResultCache).put(key, superset, terms);
-				} 
-			} else {
-				queryResultCache.put(key, superset);
 			}
 		}
 	}
